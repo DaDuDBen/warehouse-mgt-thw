@@ -1,9 +1,37 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { products, warehouses, stock } from "@/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
+
+async function releaseExpiredReservations() {
+  await db.execute(sql`
+    WITH expired AS (
+      UPDATE reservations
+      SET    status     = 'released',
+             updated_at = now()
+      WHERE  status     = 'pending'
+        AND  expires_at < now()
+      RETURNING product_id, warehouse_id, quantity
+    ),
+    aggregated AS (
+      SELECT product_id,
+             warehouse_id,
+             SUM(quantity) AS total_quantity
+      FROM   expired
+      GROUP  BY product_id, warehouse_id
+    )
+    UPDATE stock s
+    SET    reserved   = GREATEST(0, s.reserved - a.total_quantity),
+           updated_at = now()
+    FROM   aggregated a
+    WHERE  s.product_id   = a.product_id
+      AND  s.warehouse_id = a.warehouse_id
+  `);
+}
 
 export async function GET() {
+  await releaseExpiredReservations();
+
   const rows = await db
     .select({
       productId:          products.id,
