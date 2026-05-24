@@ -2,10 +2,24 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import type { Reservation } from "@/db/schema";
+import { redis } from "@/lib/redis";
 import { createReservationRequestSchema } from "@/lib/schemas";
-import { err, parseBody } from "@/lib/api";
+import { err, parseBody, IDEMPOTENCY_TTL } from "@/lib/api";
+
+type CachedResponse = { status: number; body: unknown };
 
 export async function POST(req: Request) {
+  const idempotencyKey = req.headers.get("Idempotency-Key");
+
+  // ── Idempotency check ──────────────────────────────────────────────────────
+  if (idempotencyKey) {
+    const cached = await redis.get<CachedResponse>(`idempotency:${idempotencyKey}`);
+    if (cached) {
+      return NextResponse.json(cached.body, { status: cached.status });
+    }
+  }
+
+  // ── Validate body ──────────────────────────────────────────────────────────
   const parsed = await parseBody(req, createReservationRequestSchema);
   if (parsed.error) return parsed.error;
 
@@ -13,6 +27,9 @@ export async function POST(req: Request) {
   const expiresAt = new Date(Date.now() + ttlSeconds * 1_000);
   const idempKey = bodyKey ?? null;
 
+  // ── Atomic stock check + decrement + reservation insert ────────────────────
+  // A single CTE guarantees atomicity without a transaction: if the stock
+  // UPDATE matches 0 rows the SELECT returns nothing and INSERT inserts nothing.
   const result = await db.execute<Reservation>(sql`
     WITH stock_update AS (
       UPDATE stock
@@ -39,5 +56,16 @@ export async function POST(req: Request) {
     return err("insufficient_stock", 409);
   }
 
-  return NextResponse.json(result.rows[0], { status: 201 });
+  const reservation = result.rows[0];
+
+  // ── Cache response ─────────────────────────────────────────────────────────
+  if (idempotencyKey) {
+    await redis.set(
+      `idempotency:${idempotencyKey}`,
+      { status: 201, body: reservation } satisfies CachedResponse,
+      { nx: true, ex: IDEMPOTENCY_TTL }
+    );
+  }
+
+  return NextResponse.json(reservation, { status: 201 });
 }
