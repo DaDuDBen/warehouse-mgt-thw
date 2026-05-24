@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { TriangleAlert } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -116,11 +117,11 @@ function ProductCard({ product }: { product: Product }) {
     : null;
 
   return (
-    <Card>
+    <Card className="shadow-sm transition-shadow hover:shadow-md">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
-          <CardTitle className="text-base">{product.name}</CardTitle>
-          <Badge variant="outline" className="shrink-0 font-mono text-xs">
+          <CardTitle className="text-lg font-semibold">{product.name}</CardTitle>
+          <Badge variant="secondary" className="shrink-0 font-mono text-xs">
             {product.sku}
           </Badge>
         </div>
@@ -132,10 +133,16 @@ function ProductCard({ product }: { product: Product }) {
       <CardContent className="pt-0">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b text-muted-foreground">
-              <th className="pb-2 text-left font-medium">Warehouse</th>
-              <th className="pb-2 text-right font-medium">Available</th>
-              <th className="pb-2 text-right font-medium">Total</th>
+            <tr className="border-b">
+              <th className="pb-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Warehouse
+              </th>
+              <th className="pb-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Available
+              </th>
+              <th className="pb-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Total
+              </th>
               <th className="pb-2" />
             </tr>
           </thead>
@@ -143,7 +150,11 @@ function ProductCard({ product }: { product: Product }) {
             {product.stock.map((entry) => (
               <tr key={entry.warehouseId} className="border-b last:border-0">
                 <td className="py-2">{entry.warehouseName}</td>
-                <td className="py-2 text-right tabular-nums">
+                <td
+                  className={`py-2 text-right tabular-nums font-bold ${
+                    entry.available === 0 ? "text-red-500" : "text-green-600"
+                  }`}
+                >
                   {entry.available}
                 </td>
                 <td className="py-2 text-right tabular-nums text-muted-foreground">
@@ -151,16 +162,12 @@ function ProductCard({ product }: { product: Product }) {
                 </td>
                 <td className="py-2 pl-4 text-right">
                   {entry.available === 0 ? (
-                    <Badge
-                      variant="secondary"
-                      className="opacity-50 text-xs"
-                    >
+                    <Badge variant="secondary" className="text-xs opacity-60">
                       Out of stock
                     </Badge>
                   ) : (
                     <Button
                       size="sm"
-                      variant="outline"
                       onClick={() => openForm(entry.warehouseId)}
                     >
                       Reserve
@@ -173,50 +180,56 @@ function ProductCard({ product }: { product: Product }) {
         </table>
 
         {activeForm && activeEntry && (
-          <div className="mt-4 rounded-md border p-4">
-            <p className="mb-3 text-sm font-medium">
-              Reserve from {activeEntry.warehouseName}
-            </p>
-            <form onSubmit={handleSubmit} className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={activeEntry.available}
-                value={activeForm.quantity}
-                onChange={(e) => {
-                  setActiveForm({
-                    ...activeForm,
-                    quantity: Number(e.target.value),
-                  });
-                  setFormError(null);
-                }}
-                className="w-24"
-                disabled={mutation.isPending}
-              />
-              <Button
-                type="submit"
-                size="sm"
-                disabled={mutation.isPending}
-              >
-                {mutation.isPending ? "Reserving…" : "Confirm"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={mutation.isPending}
-                onClick={() => {
-                  setActiveForm(null);
-                  setFormError(null);
-                  mutation.reset();
-                }}
-              >
-                Cancel
-              </Button>
-            </form>
-            {formError && (
-              <p className="mt-2 text-sm text-destructive">{formError}</p>
-            )}
+          <div className="mt-3 border-t pt-4">
+            <div className="rounded-md bg-muted/40 px-4 py-3">
+              <p className="mb-3 text-sm font-medium">
+                Reserve from {activeEntry.warehouseName}
+              </p>
+              <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={activeEntry.available}
+                  value={activeForm.quantity}
+                  onChange={(e) => {
+                    setActiveForm({
+                      ...activeForm,
+                      quantity: Number(e.target.value),
+                    });
+                    setFormError(null);
+                  }}
+                  className="w-24"
+                  disabled={mutation.isPending}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={mutation.isPending}
+                >
+                  {mutation.isPending ? "Reserving…" : "Confirm"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    setActiveForm(null);
+                    setFormError(null);
+                    mutation.reset();
+                  }}
+                  className="px-2 text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </Button>
+              </form>
+              {formError && (
+                <p className="mt-2 flex items-center gap-1.5 text-sm text-red-500">
+                  <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                  {formError}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>
