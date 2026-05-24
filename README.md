@@ -138,6 +138,3 @@ The 24-hour TTL matches the standard idempotency window used in payment flows.
 **Idempotency is not implemented for release.** Release is already naturally idempotent — releasing a released or confirmed reservation returns the current state without modifying it. Adding an idempotency key would be redundant.
 
 **Hot row contention at scale.** The atomic `UPDATE` on `stock` serialises concurrent writes to the same `(product_id, warehouse_id)` row. This is correct and fast at moderate throughput, but the stock row becomes a hot spot for popular SKUs. At high volume, options include partitioning by `warehouse_id`, sharding reservations into a queue, or accepting approximate availability reads with a reconciliation pass.
-
-
-## AI was used to format and refine this README.md
